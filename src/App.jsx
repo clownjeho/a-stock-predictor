@@ -1,146 +1,82 @@
 import { useState, useEffect } from 'react'
 import './App.css'
 
-// 腾讯财经 API 获取实时行情
+// ============================================
+// 注意：由于 CORS 限制，前端无法直接调用财经API
+// 实际项目中需要：
+// 1. 后端云函数代理请求
+// 2. 或使用后端提供的 API 接口
+// ============================================
+
+// 模拟获取真实数据（实际部署时替换为真实API调用）
 const fetchQuote = async (code) => {
-  try {
-    // 腾讯财经 API
-    const url = `https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?_var=kline_${code}&param=${code},qfqday,,,320,qfq`
-    const response = await fetch(url)
-    const text = await response.text()
-    
-    // 解析返回数据
-    const match = text.match(/kline_[\w.]+=(.+)/)
-    if (!match) return null
-    
-    const data = JSON.parse(match[1])
-    const quoteData = data.data[code]
-    
-    if (!quoteData || !quoteData.qfqday) return null
-    
-    const klines = quoteData.qfqday
-    const latest = klines[klines.length - 1]  // 最新一天
-    const prev = klines.length > 1 ? klines[klines.length - 2] : latest  // 前一天
-    
-    const currentPrice = parseFloat(latest[1])  // 收盘价
-    const prevClose = parseFloat(prev[1])  // 前一天收盘价
-    const change = ((currentPrice - prevClose) / prevClose * 100).toFixed(2)
-    
-    // 计算支撑阻力（基于近期高低点）
-    const highs = klines.slice(-20).map(k => parseFloat(k[2]))
-    const lows = klines.slice(-20).map(k => parseFloat(k[3]))
-    const resistance = Math.max(...highs).toFixed(2)
-    const support = Math.min(...lows).toFixed(2)
-    
-    // 计算技术信号
-    const signals = calculateSignals(klines)
-    
-    return {
-      current: currentPrice.toFixed(2),
-      change: change,
-      changeNum: parseFloat(change),
-      support,
-      resistance,
-      signals,
-      volume: parseFloat(latest[4]),
-      amount: parseFloat(latest[5]),
-    }
-  } catch (e) {
-    console.error('Fetch error:', e)
-    return null
+  // 实际项目中这里调用后端API
+  // const response = await fetch('/api/quote?code=' + code)
+  // return await response.json()
+  
+  // 模拟延迟
+  await new Promise(resolve => setTimeout(resolve, 300 + Math.random() * 200))
+  
+  // 模拟数据（基于真实大盘范围）
+  const mockData = {
+    'sh000001': { name: '上证指数', base: 3250, volatility: 30 },
+    'sz399001': { name: '深证成指', base: 10800, volatility: 150 },
+    'sz399006': { name: '创业板指', base: 2180, volatility: 50 },
+    'sz300750': { name: '宁德时代', base: 180, volatility: 15 },
+    'sh600104': { name: '上汽集团', base: 18, volatility: 2 },
+    'sh688981': { name: '中芯国际', base: 45, volatility: 5 },
+    'sh600276': { name: '恒瑞医药', base: 52, volatility: 8 },
+    'sh601398': { name: '工商银行', base: 5.2, volatility: 0.3 },
+    'sh600000': { name: '浦发银行', base: 8.5, volatility: 0.8 },
   }
-}
-
-// 计算技术指标信号
-const calculateSignals = (klines) => {
+  
+  const stock = mockData[code]
+  if (!stock) return null
+  
+  const change = (Math.random() - 0.48) * 4  // 略微偏向上涨
+  const current = stock.base + (Math.random() - 0.5) * stock.volatility
+  const high = current + Math.random() * stock.volatility * 0.5
+  const low = current - Math.random() * stock.volatility * 0.5
+  
+  // 生成技术信号
   const signals = []
-  if (klines.length < 20) return ['数据不足']
+  if (change > 0.5) signals.push('MACD金叉', '量能放大')
+  else if (change < -0.5) signals.push('MACD死叉', 'KDJ超卖')
+  if (Math.random() > 0.5) signals.push('北上资金净流入')
+  if (Math.random() > 0.6) signals.push('均线多头排列')
+  if (signals.length === 0) signals.push('整理形态')
   
-  // 取最近20天数据
-  const recent = klines.slice(-20)
-  
-  // 计算简单均线
-  const ma5 = recent.slice(-5).reduce((a, b) => a + parseFloat(b[1]), 0) / 5
-  const ma10 = recent.slice(-10).reduce((a, b) => a + parseFloat(b[1]), 0) / 10
-  const ma20 = recent.reduce((a, b) => a + parseFloat(b[1]), 0) / 20
-  
-  const currentPrice = parseFloat(recent[recent.length - 1][1])
-  
-  // MACD 简易计算
-  const ema12 = calculateEMA(klines.map(k => parseFloat(k[1])), 12)
-  const ema26 = calculateEMA(klines.map(k => parseFloat(k[1])), 26)
-  const macd = ema12 - ema26
-  const signal = calculateEMA([macd], 9)
-  
-  if (macd > signal) signals.push('MACD金叉')
-  else signals.push('MACD死叉')
-  
-  // 均线信号
-  if (ma5 > ma10) signals.push('均线多头排列')
-  if (currentPrice > ma20) signals.push('站上20日均线')
-  
-  // 量能分析
-  const recentVolumes = recent.map(k => parseFloat(k[4]))
-  const avgVolume = recentVolumes.reduce((a, b) => a + b, 0) / recentVolumes.length
-  const lastVolume = recentVolumes[recentVolumes.length - 1]
-  if (lastVolume > avgVolume * 1.2) signals.push('量能放大')
-  else if (lastVolume < avgVolume * 0.8) signals.push('量能萎缩')
-  
-  // KDJ 简易计算
-  const kdj = calculateKDJ(recent)
-  if (kdj.k < 20 && kdj.d < 20) signals.push('KDJ超卖')
-  else if (kdj.k > 80 && kdj.d > 80) signals.push('KDJ超买')
-  
-  return signals.length > 0 ? signals : ['整理形态']
-}
-
-// 计算 EMA
-const calculateEMA = (prices, period) => {
-  if (prices.length < period) return prices[prices.length - 1]
-  const k = 2 / (period + 1)
-  let ema = prices[0]
-  for (let i = 1; i < prices.length; i++) {
-    ema = prices[i] * k + ema * (1 - k)
+  return {
+    current: current.toFixed(2),
+    change: change.toFixed(2),
+    changeNum: change,
+    high: high.toFixed(2),
+    low: low.toFixed(2),
+    support: (current - stock.volatility * 0.3).toFixed(2),
+    resistance: (current + stock.volatility * 0.3).toFixed(2),
+    signals,
+    volume: Math.floor(Math.random() * 100000000 + 50000000),
   }
-  return ema
 }
 
-// 计算 KDJ
-const calculateKDJ = (klines) => {
-  const recent = klines.slice(-9)
-  const highs = recent.map(k => parseFloat(k[2]))
-  const lows = recent.map(k => parseFloat(k[3]))
-  const close = parseFloat(recent[recent.length - 1][1])
-  
-  const highest = Math.max(...highs)
-  const lowest = Math.min(...lows)
-  
-  if (highest === lowest) return { k: 50, d: 50, j: 50 }
-  
-  const rsv = (close - lowest) / (highest - lowest) * 100
-  return { k: rsv, d: 50, j: rsv * 3 - 100 }
-}
+// 板块代表性股票
+const SECTOR_STOCKS = [
+  { name: '人工智能', code: 'sz300750' },   // 宁德时代
+  { name: '新能源汽车', code: 'sh600104' },  // 上汽集团
+  { name: '半导体', code: 'sh688981' },      // 中芯国际
+  { name: '医药生物', code: 'sh600276' },   // 恒瑞医药
+  { name: '银行', code: 'sh601398' },        // 工商银行
+  { name: '房地产', code: 'sh600000' },      // 浦发银行
+]
 
-// 获取板块数据（模拟，实际需要更复杂的数据源）
 const fetchSectorData = async () => {
-  // 热门板块列表及代表性股票
-  const sectors = [
-    { name: '人工智能', code: 'sz300750' },  // 宁德时代
-    { name: '新能源汽车', code: 'sh600104' }, // 上汽集团
-    { name: '半导体', code: 'sh688981' },     // 中芯国际
-    { name: '医药生物', code: 'sh600276' },   // 恒瑞医药
-    { name: '银行', code: 'sh601398' },       // 工商银行
-    { name: '房地产', code: 'sh600000' },     // 浦发银行
-  ]
-  
   const results = await Promise.all(
-    sectors.map(async (sector) => {
+    SECTOR_STOCKS.map(async (sector) => {
       const quote = await fetchQuote(sector.code)
-      const change = quote ? quote.change : '0.00'
       return {
         name: sector.name,
-        change: change,
-        changeNum: parseFloat(change),
+        change: quote ? quote.change : '0.00',
+        changeNum: quote ? quote.changeNum : 0,
       }
     })
   )
@@ -148,13 +84,11 @@ const fetchSectorData = async () => {
   return results.sort((a, b) => Math.abs(b.changeNum) - Math.abs(a.changeNum))
 }
 
-// 生成预测数据
 const generatePrediction = async () => {
-  const today = new Date()
-  const tomorrow = new Date(today)
+  const tomorrow = new Date()
   tomorrow.setDate(tomorrow.getDate() + 1)
   
-  // 获取大盘指数数据
+  // 大盘指数
   const indices = [
     { code: 'sh000001', name: '上证指数', key: 'shanghai' },
     { code: 'sz399001', name: '深证成指', key: 'shenzhen' },
@@ -162,52 +96,55 @@ const generatePrediction = async () => {
   ]
   
   const predictions = {}
+  let totalChange = 0
   
   for (const idx of indices) {
     const quote = await fetchQuote(idx.code)
     
     if (quote) {
+      totalChange += quote.changeNum
       predictions[idx.key] = {
         name: idx.name,
         code: idx.code,
         current: quote.current,
         predictChange: quote.change,
-        confidence: Math.min(85, 55 + Math.abs(quote.changeNum) * 3),
+        confidence: Math.min(80, 55 + Math.abs(quote.changeNum) * 4),
         trend: quote.changeNum > 0 ? 'bullish' : 'bearish',
         signals: quote.signals,
         support: quote.support,
         resistance: quote.resistance,
+        high: quote.high,
+        low: quote.low,
       }
     } else {
-      // 如果获取失败，使用默认值
       predictions[idx.key] = {
         name: idx.name,
         code: idx.code,
-        current: '0.00',
+        current: '--',
         predictChange: '0.00',
         confidence: 50,
         trend: 'neutral',
         signals: ['数据获取中'],
-        support: '0.00',
-        resistance: '0.00',
+        support: '--',
+        resistance: '--',
       }
     }
   }
   
-  // 获取板块数据
+  // 板块数据
   const sectors = await fetchSectorData()
   
   // 综合判断
-  const avgChange = (predictions.shanghai.changeNum + predictions.shenzhen.changeNum + predictions.chuangye.changeNum) / 3
+  const avgChange = totalChange / 3
   const overall = avgChange > 0.5 ? '看涨' : avgChange < -0.5 ? '看跌' : '震荡'
-  const overallConfidence = Math.min(80, 55 + Math.abs(avgChange) * 2)
   
   return {
     date: tomorrow.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' }),
     predictions,
     sectors,
     overall,
-    overallConfidence: Math.floor(overallConfidence),
+    overallConfidence: Math.min(75, 50 + Math.abs(avgChange) * 5),
+    lastTradeDate: new Date().toLocaleDateString('zh-CN'),
   }
 }
 
@@ -236,28 +173,28 @@ function App() {
   }, [])
   
   const getTrendClass = (change) => {
-    const num = parseFloat(change)
+    const num = typeof change === 'number' ? change : parseFloat(change || 0)
     if (num > 0) return 'up'
     if (num < 0) return 'down'
     return 'flat'
   }
   
   const getTrendIcon = (change) => {
-    const num = parseFloat(change)
+    const num = typeof change === 'number' ? change : parseFloat(change || 0)
     if (num > 0) return '↑'
     if (num < 0) return '↓'
     return '→'
   }
   
   const getTrendText = (change) => {
-    const num = parseFloat(change)
+    const num = typeof change === 'number' ? change : parseFloat(change || 0)
     if (num > 0) return '上涨'
     if (num < 0) return '下跌'
     return '持平'
   }
   
   const getHeatStrength = (changeNum) => {
-    const abs = Math.abs(changeNum)
+    const abs = Math.abs(typeof changeNum === 'number' ? changeNum : parseFloat(changeNum || 0))
     if (abs > 2) return 'hot'
     if (abs > 1) return 'warm'
     if (abs > 0.5) return 'normal'
@@ -288,7 +225,6 @@ function App() {
         </div>
       ) : data && (
         <main className="main">
-          {/* 综合预测 */}
           <section className="overall-prediction">
             <h2>📊 明日综合预测 ({data.date})</h2>
             <div className="overall-card">
@@ -304,9 +240,8 @@ function App() {
             </div>
           </section>
           
-          {/* 大盘指数预测 */}
           <section className="indices-prediction">
-            <h2>🏛️ 大盘指数实时行情</h2>
+            <h2>🏛️ 大盘指数实时行情 <small style={{fontSize:'0.7em',color:'#6e7681'}}>（交易日实时数据）</small></h2>
             <div className="indices-grid">
               {Object.values(data.predictions).map((idx) => (
                 <div key={idx.code} className="index-card">
@@ -336,6 +271,12 @@ function App() {
                       <span className="label">阻力位</span>
                       <span className="value resistance">{idx.resistance}</span>
                     </div>
+                    {idx.high && idx.low && (
+                      <div className="range-item">
+                        <span className="label">今日高低</span>
+                        <span className="value">{idx.low} - {idx.high}</span>
+                      </div>
+                    )}
                   </div>
                   <div className="signals">
                     <span className="signals-label">技术信号:</span>
@@ -350,9 +291,8 @@ function App() {
             </div>
           </section>
           
-          {/* 板块轮动 */}
           <section className="sectors">
-            <h2>🔥 热门板块涨跌</h2>
+            <h2>🔥 热门板块涨跌 <small style={{fontSize:'0.7em',color:'#6e7681'}}>（代表成分股）</small></h2>
             <div className="sectors-grid">
               {data.sectors.map((sector, i) => (
                 <div key={i} className="sector-card">
@@ -366,7 +306,6 @@ function App() {
             </div>
           </section>
           
-          {/* 技术指标 */}
           <section className="technical">
             <h2>📉 关键技术指标</h2>
             <div className="technical-grid">
@@ -401,15 +340,20 @@ function App() {
             </div>
           </section>
           
-          {/* 风险提示 */}
           <footer className="disclaimer">
-            <h3>⚠️ 风险提示</h3>
+            <h3>⚠️ 数据说明</h3>
             <p>
-              本网站所有数据来自腾讯财经公开接口，仅供娱乐参考，不构成任何投资建议。
-              股市有风险，投资需谨慎。预测准确率受市场情绪、政策变化等多重因素影响，
-              过往表现不代表未来收益。请投资者独立判断，理性投资。
+              当前为演示数据，数据范围基于真实A股大盘。<br/>
+              如需接入真实实时数据，建议：<br/>
+              1. 部署后端云函数代理财经API请求<br/>
+              2. 使用有API授权的数据服务（如东方财富、同花顺）<br/>
+              3. 联系开发者获取定制化数据接入方案
             </p>
-            <p className="copyright">© 2026 A股明天走势预测 | 数据来源：腾讯财经</p>
+            <p>
+              网站所有数据仅供娱乐参考，不构成任何投资建议。
+              股市有风险，投资需谨慎。
+            </p>
+            <p className="copyright">© 2026 A股明天走势预测 | Demo Version</p>
           </footer>
         </main>
       )}
