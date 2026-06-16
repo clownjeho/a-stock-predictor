@@ -101,7 +101,7 @@ const generatePrediction = async () => {
   for (const idx of indices) {
     const quote = await fetchQuote(idx.code)
     
-    if (quote) {
+    if (quote && typeof quote.changeNum === 'number') {
       totalChange += quote.changeNum
       predictions[idx.key] = {
         name: idx.name,
