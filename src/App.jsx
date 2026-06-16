@@ -232,7 +232,7 @@ function App() {
                 <span className={`trend-badge ${data.overall === '看涨' ? 'bullish' : data.overall === '看跌' ? 'bearish' : 'neutral'}`}>
                   {data.overall}
                 </span>
-                <span className="confidence">置信度: {data.overallConfidence}%</span>
+                <span className="confidence">置信度: {Math.round(data.overallConfidence)}%</span>
               </div>
               <p className="overall-desc">
                 基于多因子模型分析，明日市场整体{data.overall}，建议关注主线板块轮动机会
@@ -260,7 +260,7 @@ function App() {
                     <span className={getTrendClass(idx.predictChange)}>
                       {getTrendText(idx.predictChange)}
                     </span>
-                    <span className="confidence-tag">{idx.confidence}% 置信</span>
+                    <span className="confidence-tag">{Math.round(idx.confidence)}% 置信</span>
                   </div>
                   <div className="index-range">
                     <div className="range-item">
