@@ -8,54 +8,40 @@ import './App.css'
 // 2. 或使用后端提供的 API 接口
 // ============================================
 
-// 模拟获取真实数据（实际部署时替换为真实API调用）
+// 使用 Vercel API 代理获取真实A股数据
 const fetchQuote = async (code) => {
-  // 实际项目中这里调用后端API
-  // const response = await fetch('/api/quote?code=' + code)
-  // return await response.json()
-  
-  // 模拟延迟
-  await new Promise(resolve => setTimeout(resolve, 300 + Math.random() * 200))
-  
-  // 模拟数据（基于真实大盘范围）
-  const mockData = {
-    'sh000001': { name: '上证指数', base: 3250, volatility: 30 },
-    'sz399001': { name: '深证成指', base: 10800, volatility: 150 },
-    'sz399006': { name: '创业板指', base: 2180, volatility: 50 },
-    'sz300750': { name: '宁德时代', base: 180, volatility: 15 },
-    'sh600104': { name: '上汽集团', base: 18, volatility: 2 },
-    'sh688981': { name: '中芯国际', base: 45, volatility: 5 },
-    'sh600276': { name: '恒瑞医药', base: 52, volatility: 8 },
-    'sh601398': { name: '工商银行', base: 5.2, volatility: 0.3 },
-    'sh600000': { name: '浦发银行', base: 8.5, volatility: 0.8 },
-  }
-  
-  const stock = mockData[code]
-  if (!stock) return null
-  
-  const change = (Math.random() - 0.48) * 4  // 略微偏向上涨
-  const current = stock.base + (Math.random() - 0.5) * stock.volatility
-  const high = current + Math.random() * stock.volatility * 0.5
-  const low = current - Math.random() * stock.volatility * 0.5
-  
-  // 生成技术信号
-  const signals = []
-  if (change > 0.5) signals.push('MACD金叉', '量能放大')
-  else if (change < -0.5) signals.push('MACD死叉', 'KDJ超卖')
-  if (Math.random() > 0.5) signals.push('北上资金净流入')
-  if (Math.random() > 0.6) signals.push('均线多头排列')
-  if (signals.length === 0) signals.push('整理形态')
-  
-  return {
-    current: current.toFixed(2),
-    change: change.toFixed(2),
-    changeNum: change,
-    high: high.toFixed(2),
-    low: low.toFixed(2),
-    support: (current - stock.volatility * 0.3).toFixed(2),
-    resistance: (current + stock.volatility * 0.3).toFixed(2),
-    signals,
-    volume: Math.floor(Math.random() * 100000000 + 50000000),
+  try {
+    // 调用 Vercel API 代理
+    const response = await fetch(`/api/stock?code=${code}`)
+    const data = await response.json()
+    
+    if (data.error) {
+      console.error('API error:', data.error)
+      return null
+    }
+    
+    // 生成技术信号
+    const signals = []
+    if (data.changeNum > 0.5) signals.push('MACD金叉', '量能放大')
+    else if (data.changeNum < -0.5) signals.push('MACD死叉', 'KDJ超卖')
+    if (Math.random() > 0.5) signals.push('北上资金净流入')
+    if (Math.random() > 0.6) signals.push('均线多头排列')
+    if (signals.length === 0) signals.push('整理形态')
+    
+    return {
+      current: data.current,
+      change: data.change,
+      changeNum: data.changeNum,
+      high: data.high,
+      low: data.low,
+      support: data.support,
+      resistance: data.resistance,
+      signals,
+      volume: data.volume,
+    }
+  } catch (e) {
+    console.error('Fetch error:', e)
+    return null
   }
 }
 
